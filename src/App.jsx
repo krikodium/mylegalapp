@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, EmailAuthProvider, linkWithCredential } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, serverTimestamp, deleteDoc } from 'firebase/firestore'; 
+import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, serverTimestamp, deleteDoc, updateDoc, addDoc } from 'firebase/firestore'; 
 import * as pdfjsLib from 'pdfjs-dist'; 
 
 // Configure PDF.js worker
@@ -93,8 +93,65 @@ function ReviewModal({ reviewContent, onClose, isLoading }) {
   );
 }
 
-// AssistantChatModal Component
-function AssistantChatModal({ chatHistory, onSendMessage, onClose, isLoading }) {
+// --- NEW: AssistantLobbyView Component ---
+function AssistantLobbyView({ savedChats, onNewChat, onLoadChat, onDeleteChat, isLoading }) {
+  return (
+    <div className="w-full bg-bg-light p-6 rounded-xl shadow-inner flex flex-col">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-3xl font-bold text-primary-dark">Asistente Virtual</h2>
+        <button
+          onClick={onNewChat}
+          className="bg-primary-dark hover:bg-primary-light text-white font-semibold py-2 px-5 rounded-lg transition-colors duration-200 shadow-md flex items-center gap-2"
+          disabled={isLoading}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
+          </svg>
+          Nuevo Chat
+        </button>
+      </div>
+
+      <div className="overflow-y-auto max-h-[calc(100vh-350px)] pr-2">
+        {savedChats.length > 0 ? (
+          <ul className="space-y-3">
+            {savedChats.map((chat) => (
+              <li key={chat.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex justify-between items-center">
+                <div>
+                  <p className="font-semibold text-primary-dark text-lg font-serif">{chat.title || 'Chat sin título'}</p>
+                  <p className="text-text-medium text-sm font-serif">
+                    Guardado: {new Date(chat.savedAt.toDate()).toLocaleString()}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => onLoadChat(chat)}
+                    className="bg-primary-dark hover:bg-primary-light text-white text-sm font-medium py-2 px-4 rounded-md transition-colors duration-200 shadow-sm"
+                    disabled={isLoading}
+                  >
+                    Abrir
+                  </button>
+                   <button
+                    onClick={() => onDeleteChat(chat.id)}
+                    className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors duration-200 shadow-sm"
+                    disabled={isLoading}
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-text-medium text-center py-12">No tienes chats guardados. Inicia una nueva conversación para empezar.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+// --- MODIFIED: AssistantChatView Component (was AssistantChatModal) ---
+function AssistantChatView({ chatHistory, onSendMessage, onSaveChat, onDiscardChat, isLoading }) {
   const [input, setInput] = useState('');
   const chatEndRef = useRef(null); 
 
@@ -105,7 +162,7 @@ function AssistantChatModal({ chatHistory, onSendMessage, onClose, isLoading }) 
   }, [chatHistory]);
 
   const handleSend = () => {
-    if (input.trim()) { // Only send if input is not empty
+    if (input.trim()) {
       onSendMessage(input);
       setInput('');
     }
@@ -118,55 +175,65 @@ function AssistantChatModal({ chatHistory, onSendMessage, onClose, isLoading }) 
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md h-[80vh] flex flex-col relative">
-        <h3 className="text-2xl font-bold text-primary-dark mb-4 text-center font-sans">Asistente Legal AI 🤖</h3>
-        <div className="flex-grow overflow-y-auto border border-gray-200 rounded-lg p-3 mb-4 space-y-3 custom-scrollbar">
-          {chatHistory.length === 0 && (
-              <p className="text-text-medium text-center italic font-serif">Hola, soy tu Asistente Legal. ¿En qué puedo ayudarte hoy?</p>
-          )}
-          {chatHistory.map((msg, index) => (
-            <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] p-2 rounded-lg ${
-                msg.role === 'user' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark'
-              }`}>
-                <p className="font-serif">{msg.content}</p>
-              </div>
+    <div className="bg-white p-6 rounded-xl shadow-lg w-full h-[80vh] flex flex-col relative">
+       <div className="flex justify-between items-center mb-4">
+            <h3 className="text-2xl font-bold text-primary-dark font-sans">Asistente Legal AI 🤖</h3>
+            <div className="flex gap-2">
+                <button
+                    onClick={onSaveChat}
+                    className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 shadow-md"
+                    disabled={isLoading || chatHistory.length === 0}
+                >
+                    Guardar Chat
+                </button>
+                <button
+                    onClick={onDiscardChat}
+                    className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 shadow-md"
+                    disabled={isLoading}
+                >
+                    Volver al Lobby
+                </button>
             </div>
-          ))}
-          <div ref={chatEndRef} /> 
-        </div>
-        
-        <div className="flex">
-          <input
-            type="text"
-            className="flex-grow p-2 border border-primary-light rounded-l-lg focus:ring-2 focus:ring-primary-dark focus:border-transparent text-text-dark font-serif"
-            placeholder="Escribe tu pregunta..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={isLoading}
-          />
-          <button
-            onClick={handleSend}
-            className="bg-primary-dark hover:bg-primary-light text-white font-semibold py-2 px-4 rounded-r-lg transition-colors duration-200 shadow-md"
-            disabled={isLoading}
-          >
-            Enviar
-          </button>
-        </div>
+       </div>
+
+      <div className="flex-grow overflow-y-auto border border-gray-200 rounded-lg p-3 mb-4 space-y-3 custom-scrollbar">
+        {chatHistory.length === 0 && (
+            <p className="text-text-medium text-center italic font-serif">Hola, soy tu Asistente Legal. ¿En qué puedo ayudarte hoy?</p>
+        )}
+        {chatHistory.map((msg, index) => (
+          <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[80%] p-2 rounded-lg ${
+              msg.role === 'user' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark'
+            }`}>
+              <p className="font-serif">{msg.content}</p>
+            </div>
+          </div>
+        ))}
+        <div ref={chatEndRef} /> 
+      </div>
+      
+      <div className="flex">
+        <input
+          type="text"
+          className="flex-grow p-2 border border-primary-light rounded-l-lg focus:ring-2 focus:ring-primary-dark focus:border-transparent text-text-dark font-serif"
+          placeholder="Escribe tu pregunta..."
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyPress={handleKeyPress}
+          disabled={isLoading}
+        />
         <button
-          onClick={onClose}
-          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+          onClick={handleSend}
+          className="bg-primary-dark hover:bg-primary-light text-white font-semibold py-2 px-4 rounded-r-lg transition-colors duration-200 shadow-md"
+          disabled={isLoading}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          Enviar
         </button>
       </div>
     </div>
   );
 }
+
 
 // DocumentEditor Component
 function DocumentEditor({
@@ -540,43 +607,27 @@ function App() {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('info'); // 'info', 'success', 'error'
   const [savedDocuments, setSavedDocuments] = useState([]);
-  const [currentView, setCurrentView] = useState('login'); // Start with login view
+  const [currentView, setCurrentView] = useState('login'); // 'login', 'home', 'editor', 'subscriptions', 'assistant-lobby', 'assistant-chat'
   const [userPlan, setUserPlan] = useState('free'); // 'free', 'basic', 'pro'
-  const [email, setEmail] = useState(''); // State for auth inputs in main App component
-  const [password, setPassword] = useState(''); // State for auth inputs in main App component
-  const [generationCount, setGenerationCount] = useState(0); // For daily limit concept
-  const [filesUploadedToday, setFilesUploadedToday] = useState(0); // New: For daily file upload limit
-  const [showUpgradeAuth, setShowUpgradeAuth] = useState(false); // State to control UpgradeAuthPrompt visibility
-  const [planToUpgradeTo, setPlanToUpgradeTo] = useState(null); // Which plan is being upgraded to
-  const [summaryContent, setSummaryContent] = useState(''); // New state for summary content
-  const [showSummaryModal, setShowSummaryModal] = useState(false); // New state to control summary modal visibility
-  const [reviewContent, setReviewContent] = useState(''); // New state for AI review content
-  const [showReviewModal, setShowReviewModal] = useState(false); // New state to control AI review modal visibility
-  const [selectedFileName, setSelectedFileName] = useState(''); // New: State for displaying selected file name
-  const [isNavOpen, setIsNavOpen] = useState(false); // NEW: State for hamburger menu
-  const [assistantChatHistory, setAssistantChatHistory] = useState([]); // New: Chat history for assistant
-  // Moved handleSendAssistantMessage here so it's always defined when passed
-  const handleSendAssistantMessage = async (message) => {
-    if (!message.trim()) return;
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [generationCount, setGenerationCount] = useState(0);
+  const [filesUploadedToday, setFilesUploadedToday] = useState(0);
+  const [showUpgradeAuth, setShowUpgradeAuth] = useState(false);
+  const [planToUpgradeTo, setPlanToUpgradeTo] = useState(null);
+  const [summaryContent, setSummaryContent] = useState('');
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [reviewContent, setReviewContent] = useState('');
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState('');
+  const [isNavOpen, setIsNavOpen] = useState(false);
+  
+  // --- NEW: State for Assistant ---
+  const [assistantChatHistory, setAssistantChatHistory] = useState([]);
+  const [savedChats, setSavedChats] = useState([]);
+  const [currentChatId, setCurrentChatId] = useState(null); // To track the ID of the chat being edited/viewed
 
-    const newUserMessage = { role: 'user', content: message };
-    setAssistantChatHistory(prev => [...prev, newUserMessage]);
-    setIsLoading(true);
 
-    try {
-      const assistantResponse = await callGeminiAPI(message, 'assistant');
-      if (assistantResponse) {
-        setAssistantChatHistory(prev => [...prev, { role: 'model', content: assistantResponse }]);
-      } else {
-        setAssistantChatHistory(prev => [...prev, { role: 'model', content: 'Lo siento, no pude procesar tu solicitud en este momento. Intenta de nuevo.' }]);
-      }
-    } catch (error) {
-      console.error("Error en la conversación con el asistente:", error);
-      setAssistantChatHistory(prev => [...prev, { role: 'model', content: 'Hubo un error al comunicarme con el asistente. Intenta de nuevo.' }]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
   const messageTimeoutRef = useRef(null);
 
   // Clear message after a few seconds
@@ -613,7 +664,9 @@ function App() {
           setUserId(null);
           setUserPlan('free');
           setGenerationCount(0);
-          setFilesUploadedToday(0); // Reset file upload count
+          setFilesUploadedToday(0);
+          setSavedDocuments([]);
+          setSavedChats([]);
         }
       });
       return () => unsubscribe(); // Cleanup auth listener
@@ -641,8 +694,7 @@ function App() {
                   currentGenCount = 0;
                   currentFilesUploaded = 0;
                   await setDoc(userPlanDocRef, { generationCount: 0, filesUploadedToday: 0, lastActivityDate: serverTimestamp() }, { merge: true });
-              } else {
-                  // Only update if lastActivityDate is not set or not a new day
+              } else if (!lastActivityDate) {
                   await setDoc(userPlanDocRef, { lastActivityDate: serverTimestamp() }, { merge: true });
               }
               setGenerationCount(currentGenCount);
@@ -668,18 +720,12 @@ function App() {
       const q = query(userDocsCollectionRef);
 
       const unsubscribe = onSnapshot(q, (snapshot) => {
-        if (!snapshot.empty) {
-          const docsList = snapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() }))
-            .sort((a, b) => (b.lastModifiedAt?.toDate() || 0) - (a.lastModifiedAt?.toDate() || 0)); // Client-side sort
-          setSavedDocuments(docsList);
-          showMessage(`Se cargaron ${docsList.length} documentos guardados.`, 'info');
-        } else {
-          setSavedDocuments([]);
-          showMessage('No hay documentos guardados. ¡Empieza a generar uno!', 'info');
-        }
+        const docsList = snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .sort((a, b) => (b.lastModifiedAt?.toDate() || 0) - (a.lastModifiedAt?.toDate() || 0));
+        setSavedDocuments(docsList);
       }, (error) => {
-        console.error("Error al obtener documentos en tiempo real:", error);
+        console.error("Error al obtener documentos:", error);
         showMessage(`Error al cargar documentos: ${error.message}`, 'error');
       });
 
@@ -687,7 +733,28 @@ function App() {
     }
   }, [db, userId]);
 
-  // Auth functions (defined within App component scope)
+  // --- NEW: Fetch and listen for saved chats ---
+  useEffect(() => {
+    if (db && userId) {
+        const chatsCollectionRef = collection(db, `artifacts/${myAppId}/users/${userId}/assistant_chats`);
+        const q = query(chatsCollectionRef);
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const chatsList = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                .sort((a, b) => (b.savedAt?.toDate() || 0) - (a.savedAt?.toDate() || 0));
+            setSavedChats(chatsList);
+        }, (error) => {
+            console.error("Error al obtener chats guardados:", error);
+            showMessage(`Error al cargar chats: ${error.message}`, 'error');
+        });
+
+        return () => unsubscribe();
+    }
+  }, [db, userId]);
+
+
+  // Auth functions
   const handleRegister = async () => {
     if (!email || !password) {
       showMessage('Por favor, ingresa un correo electrónico y una contraseña para registrarte.', 'error');
@@ -700,14 +767,12 @@ function App() {
       setUserId(userCredential.user.uid);
       await setDoc(doc(db, `artifacts/${myAppId}/user_plans/${userCredential.user.uid}`), { plan: 'free', generationCount: 0, filesUploadedToday: 0, lastActivityDate: serverTimestamp(), createdAt: serverTimestamp() });
       setUserPlan('free');
-      setFilesUploadedToday(0); // Reset local count
+      setFilesUploadedToday(0);
       showMessage('Registro exitoso. ¡Bienvenido!', 'success');
       setCurrentView('home');
     } catch (error) {
       if (error.code === 'auth/email-already-in-use') {
         showMessage('Este correo ya está registrado. Por favor, inicia sesión o usa otro correo.', 'error');
-      } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-        showMessage('Credenciales inválidas. Verifica tu correo y contraseña o regístrate.', 'error');
       } else {
         console.error("Error en el registro:", error);
         showMessage(`Error en el registro: ${error.message}`, 'error');
@@ -748,14 +813,8 @@ function App() {
     showMessage('Cerrando sesión...', 'info');
     try {
       await signOut(auth);
-      setUserId(null);
-      setEmail('');
-      setPassword('');
-      setUserPlan('free'); // Reset plan on logout
-      setGenerationCount(0); // Reset count on logout
-      setFilesUploadedToday(0); // Reset file upload count
-      showMessage('Sesión cerrada. Puedes iniciar sesión o registrarte nuevamente.', 'info');
-      setCurrentView('login'); // Go back to login screen after logout
+      // State reset is handled by onAuthStateChanged listener
+      showMessage('Sesión cerrada.', 'info');
     } catch (error) {
       console.error("Error al cerrar sesión:", error);
       showMessage(`Error al cerrar sesión: ${error.message}`, 'error');
@@ -766,34 +825,28 @@ function App() {
 
   const handleSelectPlan = async (plan) => {
       if (!userId || !db || !auth) {
-          showMessage('Error: No se pudo verificar el estado de autenticación. Intenta recargar la página.', 'error');
+          showMessage('Error de autenticación. Intenta recargar.', 'error');
           return;
       }
-
-      // If user is already on the selected plan
       if (userPlan === plan) {
           showMessage(`Ya estás en el plan ${plan.toUpperCase()}.`, 'info');
           setCurrentView('home');
           return;
       }
-      
-      // If user is anonymous and trying to get a paid plan
       if (auth.currentUser.isAnonymous && (plan === 'basic' || plan === 'pro')) {
           setPlanToUpgradeTo(plan);
-          setShowUpgradeAuth(true); // Show the authentication prompt for upgrade
-          return; // Stop here, wait for auth prompt completion
+          setShowUpgradeAuth(true);
+          return;
       }
-
-      // If user is already authenticated with email/password, or selecting free plan
       setIsLoading(true);
       try {
           const userPlanDocRef = doc(db, `artifacts/${myAppId}/user_plans/${userId}`);
           await setDoc(userPlanDocRef, { plan: plan, lastModifiedAt: serverTimestamp() }, { merge: true });
           setUserPlan(plan);
-          setGenerationCount(0); // Reset generation count when plan changes
-          setFilesUploadedToday(0); // Reset file upload count when plan changes
+          setGenerationCount(0);
+          setFilesUploadedToday(0);
           showMessage(`Plan "${plan}" seleccionado con éxito.`, 'success');
-          setCurrentView('home'); // Go to home after selecting plan
+          setCurrentView('home');
       } catch (error) {
           console.error("Error al seleccionar plan:", error);
           showMessage(`Error al seleccionar plan: ${error.message}`, 'error');
@@ -803,104 +856,85 @@ function App() {
   };
 
   const handleUpgradeAuthSuccess = async (plan) => {
-    setShowUpgradeAuth(false); // Hide the modal
+    setShowUpgradeAuth(false);
     setIsLoading(true);
     try {
         const userPlanDocRef = doc(db, `artifacts/${myAppId}/user_plans/${auth.currentUser.uid}`);
         await setDoc(userPlanDocRef, { plan: plan, lastModifiedAt: serverTimestamp() }, { merge: true });
         setUserPlan(plan);
         setGenerationCount(0);
-        setFilesUploadedToday(0); // Reset file count after upgrade
+        setFilesUploadedToday(0);
         showMessage(`¡Bienvenido al plan ${plan.toUpperCase()}!`, 'success');
         setCurrentView('home');
-        setUserId(auth.currentUser.uid); // Ensure userId is updated if linking occurred
+        setUserId(auth.currentUser.uid);
         fetchUserPlan(auth.currentUser.uid);
     } catch (error) {
-        console.error("Error al finalizar la actualización del plan después de la autenticación:", error);
-        showMessage(`Error al actualizar plan después de la autenticación: ${error.message}`, 'error');
+        console.error("Error al finalizar la actualización del plan:", error);
+        showMessage(`Error al actualizar plan: ${error.message}`, 'error');
     } finally {
         setIsLoading(false);
     }
   };
 
   const handleUpgradeAuthCancel = () => {
-      setShowUpgradeAuth(false); // Hide the modal
+      setShowUpgradeAuth(false);
       showMessage('Selección de plan cancelada.', 'info');
   };
 
-  // Conceptual daily generation limits
+  // Generation and file upload limits
   const checkGenerationLimit = () => {
-    const limits = {
-      'free': 5,
-      'basic': 20, // More than free, but still limited
-      'pro': Infinity // No limit
-    };
+    const limits = { 'free': 5, 'basic': 20, 'pro': Infinity };
     if (generationCount >= limits[userPlan]) {
-      showMessage(`Has alcanzado el límite diario de ${limits[userPlan]} generaciones para tu plan "${userPlan}". Considera actualizar tu plan.`, 'error');
+      showMessage(`Límite diario de ${limits[userPlan]} generaciones alcanzado.`, 'error');
       return false;
     }
     return true;
   };
 
   const incrementGenerationCount = async () => {
-    setGenerationCount(prev => prev + 1);
+    const newCount = generationCount + 1;
+    setGenerationCount(newCount);
     if (db && userId) {
-        try {
-            const userPlanDocRef = doc(db, `artifacts/${myAppId}/user_plans/${userId}`);
-            await setDoc(userPlanDocRef, { generationCount: generationCount + 1, lastActivityDate: serverTimestamp() }, { merge: true });
-        } catch (error) {
-            console.error("Error al actualizar el contador de generaciones:", error);
-        }
+      const userPlanDocRef = doc(db, `artifacts/${myAppId}/user_plans/${userId}`);
+      await setDoc(userPlanDocRef, { generationCount: newCount, lastActivityDate: serverTimestamp() }, { merge: true });
     }
   };
 
-  // Conceptual daily file upload limits
   const checkFileUploadLimit = () => {
-    const limits = {
-      'free': 5,
-      'basic': 10,
-      'pro': Infinity
-    };
+    const limits = { 'free': 5, 'basic': 10, 'pro': Infinity };
     if (filesUploadedToday >= limits[userPlan]) {
-      showMessage(`Has alcanzado el límite diario de ${limits[userPlan]} archivos revisados para tu plan "${userPlan}". Considera actualizar tu plan.`, 'error');
+      showMessage(`Límite diario de ${limits[userPlan]} archivos revisados alcanzado.`, 'error');
       return false;
     }
     return true;
   };
 
   const incrementFilesUploaded = async () => {
-    setFilesUploadedToday(prev => prev + 1);
+    const newCount = filesUploadedToday + 1;
+    setFilesUploadedToday(newCount);
     if (db && userId) {
-        try {
-            const userPlanDocRef = doc(db, `artifacts/${myAppId}/user_plans/${userId}`);
-            await setDoc(userPlanDocRef, { filesUploadedToday: filesUploadedToday + 1, lastActivityDate: serverTimestamp() }, { merge: true });
-        } catch (error) {
-            console.error("Error al actualizar el contador de archivos revisados:", error);
-        }
+      const userPlanDocRef = doc(db, `artifacts/${myAppId}/user_plans/${userId}`);
+      await setDoc(userPlanDocRef, { filesUploadedToday: newCount, lastActivityDate: serverTimestamp() }, { merge: true });
     }
   };
 
 
-  // Function to call the Gemini API for various purposes
+  // Gemini API Call
   const callGeminiAPI = async (prompt, type = 'generate', currentDoc = '') => {
     if (!auth || !auth.currentUser || !userId) {
-      showMessage('Necesitas estar autenticado para usar la IA. Por favor, inicia sesión.', 'error');
+      showMessage('Necesitas estar autenticado.', 'error');
       setCurrentView('login');
-      return null; // Return null to indicate failure
+      return null;
     }
 
-    // Check specific limits based on AI call type
-    if (type === 'generate' || type === 'modify') {
-      if (!checkGenerationLimit()) return null;
-    } else if (type === 'summarize' || type === 'review' || type === 'assistant') { // Added 'assistant' type to limit
-      if (!checkFileUploadLimit()) return null; // Use file upload limit for review/summarize/assistant
-    }
-
+    if ((type === 'generate' || type === 'modify') && !checkGenerationLimit()) return null;
+    if ((type === 'summarize' || type === 'review' || type === 'assistant') && !checkFileUploadLimit()) return null;
+    
     setIsLoading(true);
     showMessage('Generando contenido con IA...', 'info');
+    
     let promptToSend = '';
-
-    // Adjust prompt based on type of AI call
+    // ... (prompt construction logic remains the same)
     if (type === 'generate') {
       promptToSend = `Genera un documento legal en español para Argentina basándose en la siguiente instrucción. Asegúrate de que el contenido sea preciso y se ajuste a la terminología jurídica argentina. Responde únicamente con texto plano, sin etiquetas HTML o formato especial. Proporciona el texto completo del documento:\n\n"${prompt}"`;
     } else if (type === 'modify') {
@@ -909,7 +943,7 @@ function App() {
       promptToSend = `Por favor, proporciona un resumen conciso y claro del siguiente documento legal. Enfócate en los puntos clave, las partes involucradas y las acciones principales. Responde únicamente con texto plano, sin etiquetas HTML o formato especial:\n\n"""\n${prompt}\n"""`;
     } else if (type === 'review') { 
       promptToSend = `Eres un asistente legal en Argentina. Revisa el siguiente documento legal (texto plano) y proporciona consejos o mejoras. Identifica posibles errores, ambigüedades, áreas de optimización, o sugerencias para mayor claridad o cumplimiento legal. Responde únicamente con texto plano:\n\n"""\n${prompt}\n"""`;
-    } else if (type === 'assistant') { // NEW: Assistant prompt
+    } else if (type === 'assistant') { 
         promptToSend = `Eres un asistente virtual de la aplicación LegalDocs AI, especializada en documentos legales para Argentina. Tu propósito es ayudar a los usuarios con preguntas relacionadas con la aplicación, su funcionamiento, los planes de suscripción, cómo generar/modificar/resumir/revisar documentos, o consejos generales sobre la redacción legal en Argentina.
 
         **Instrucciones clave:**
@@ -920,237 +954,145 @@ function App() {
         **Conversación del usuario:**\n\n"${prompt}"`;
     }
 
-
     try {
-      let chatHistory = [{ role: "user", parts: [{ text: promptToSend }] }];
-      const payload = { contents: chatHistory };
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY; // Using API key from .env
-
+      const payload = { contents: [{ role: "user", parts: [{ text: promptToSend }] }] };
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Error de la API de Gemini: ${response.status} - ${errorData.error?.message || response.statusText}`);
-      }
-
+      if (!response.ok) throw new Error(`Error de la API de Gemini: ${response.status}`);
+      
       const result = await response.json();
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
 
-      if (result.candidates && result.candidates.length > 0 &&
-          result.candidates[0].content && result.candidates[0].content.parts &&
-          result.candidates[0].content.parts.length > 0) {
-        const text = result.candidates[0].content.parts[0].text;
-        // Increment specific counter based on type
-        if (type === 'generate' || type === 'modify') {
-            incrementGenerationCount();
-        } else if (type === 'summarize' || type === 'review' || type === 'assistant') { // Increment for assistant too
-            incrementFilesUploaded(); 
-        }
-        showMessage('Contenido generado/modificado con éxito.', 'success');
-        return text; 
+      if (text) {
+        if (type === 'generate' || type === 'modify') incrementGenerationCount();
+        else if (type === 'summarize' || type === 'review' || type === 'assistant') incrementFilesUploaded();
+        showMessage('Contenido generado con éxito.', 'success');
+        return text;
       } else {
-        showMessage('No se pudo generar contenido. La respuesta de la IA fue inesperada.', 'error');
-        console.error('Respuesta inesperada de la API de Gemini:', result);
-        return null;
+        throw new Error('Respuesta inesperada de la API.');
       }
     } catch (error) {
       console.error("Error al llamar a la API de Gemini:", error);
-      showMessage(`Error al interactuar con la IA: ${error.message}. Por favor, inténtalo de nuevo.`, 'error');
+      showMessage(`Error al interactuar con la IA: ${error.message}`, 'error');
       return null;
     } finally {
       setIsLoading(false);
     }
   };
 
-  // New handleReviewDocument function (file upload)
+  // Document handling functions
   const handleReviewDocument = async (event) => {
       const file = event.target.files[0];
-      if (!file) {
-          showMessage('Ningún archivo seleccionado.', 'info');
-          setSelectedFileName(''); // Clear previous file name
-          return;
-      }
+      if (!file) return;
 
-      setSelectedFileName(file.name); // Display the selected file name
+      setSelectedFileName(file.name);
+      let fileContent = '';
 
-      if (file.type === 'application/pdf') {
-          if (!checkFileUploadLimit()) {
-            event.target.value = ''; 
-            return;
-          }
-          showMessage('Procesando PDF... Esto puede tomar un momento.', 'info');
-          
-          const reader = new FileReader();
-          reader.onload = async (e) => {
-              try {
-                  const data = new Uint8Array(e.target.result);
-                  const pdf = await pdfjsLib.getDocument({ data: data }).promise; // Use pdfjsLib to get document
-                  let fullText = '';
-                  for (let i = 0; i < pdf.numPages; i++) {
-                      const page = await pdf.getPage(i + 1);
-                      const textContent = await page.getTextContent();
-                      fullText += textContent.items.map(s => s.str).join(' ');
-                  }
-
-                  if (!fullText.trim()) {
-                      showMessage('El archivo PDF está vacío o no se pudo extraer texto.', 'info');
-                      setSelectedFileName(''); 
-                      return;
-                  }
-                  
-                  setShowReviewModal(true); 
-                  setReviewContent(''); 
-                  const review = await callGeminiAPI(fullText, 'review'); 
-                  if (review) {
-                      setReviewContent(review);
-                  } else {
-                      setReviewContent('No se pudo generar la revisión del documento desde el PDF.');
-                  }
-              } catch (pdfError) {
-                  console.error("Error al procesar PDF:", pdfError);
-                  showMessage(`Error al procesar el archivo PDF: ${pdfError.message}. Asegúrate de que sea un PDF válido y legible.`, 'error');
-                  setSelectedFileName(''); 
+      try {
+          if (file.type === 'application/pdf') {
+              if (!checkFileUploadLimit()) { event.target.value = ''; return; }
+              showMessage('Procesando PDF...', 'info');
+              const data = new Uint8Array(await file.arrayBuffer());
+              const pdf = await pdfjsLib.getDocument({ data }).promise;
+              for (let i = 1; i <= pdf.numPages; i++) {
+                  const page = await pdf.getPage(i);
+                  const textContent = await page.getTextContent();
+                  fileContent += textContent.items.map(s => s.str).join(' ');
               }
-          };
-          reader.readAsArrayBuffer(file);
-          event.target.value = ''; 
-          return; 
-
-      } else if (file.type !== 'text/plain') {
-          showMessage('Solo se permiten archivos de texto plano (.txt) o PDF para la revisión.', 'error');
-          event.target.value = ''; 
-          return;
-      }
-
-      // Handle .txt files
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-          const fileContent = e.target.result;
-          if (!fileContent.trim()) {
-              showMessage('El archivo está vacío. No hay nada que revisar.', 'info');
-              setSelectedFileName(''); 
+          } else if (file.type === 'text/plain') {
+              fileContent = await file.text();
+          } else {
+              showMessage('Solo se permiten archivos .txt o .pdf.', 'error');
               return;
           }
-          setShowReviewModal(true); 
-          setReviewContent(''); 
-          const review = await callGeminiAPI(fileContent, 'review');
-          if (review) {
-              setReviewContent(review);
-          } else {
-              setReviewContent('No se pudo generar la revisión del documento.');
+
+          if (!fileContent.trim()) {
+              showMessage('El archivo está vacío.', 'info');
+              return;
           }
-      };
-      reader.readAsText(file);
-      event.target.value = ''; 
+          
+          setShowReviewModal(true);
+          setReviewContent('');
+          const review = await callGeminiAPI(fileContent, 'review');
+          setReviewContent(review || 'No se pudo generar la revisión.');
+
+      } catch (error) {
+          console.error("Error procesando archivo:", error);
+          showMessage(`Error al procesar el archivo: ${error.message}`, 'error');
+      } finally {
+        event.target.value = ''; // Reset file input
+      }
   };
 
-
   const handleSaveDocument = async () => {
-    if (!db || !userId) {
-      showMessage('Firebase no está inicializado o el usuario no está autenticado.', 'error');
-      return;
-    }
-    if (!documentContent.trim()) {
-      showMessage('El documento está vacío. No se puede guardar.', 'info');
-      return;
+    if (!db || !userId || !documentContent.trim()) {
+        showMessage('No hay nada que guardar.', 'info');
+        return;
     }
     setIsLoading(true);
-    showMessage('Guardando documento...', 'info');
     try {
       const title = getDocumentTitle(documentContent);
       const docRef = doc(collection(db, `artifacts/${myAppId}/users/${userId}/legal_documents`));
       await setDoc(docRef, {
         content: documentContent,
-        title: title,
+        title,
         createdAt: serverTimestamp(),
         lastModifiedAt: serverTimestamp(),
       });
       setDocumentContent('');
       setPromptInput('');
-      setSelectedFileName(''); 
-      showMessage('Documento guardado con éxito. ¡Empieza un nuevo documento!', 'success');
+      setSelectedFileName('');
+      showMessage('Documento guardado.', 'success');
     } catch (error) {
-      console.error("Error al guardar el documento:", error);
+      console.error("Error al guardar documento:", error);
       showMessage(`Error al guardar: ${error.message}`, 'error');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // New handleDeleteDocument function
   const handleDeleteDocument = async (docId) => {
-    if (!db || !userId) {
-      showMessage('Error de autenticación al intentar eliminar.', 'error');
-      return;
-    }
-    if (!window.confirm('¿Estás seguro de que quieres eliminar este documento? Esta acción no se puede deshacer.')) {
-      return;
-    }
+    if (!db || !userId || !window.confirm('¿Eliminar este documento?')) return;
     setIsLoading(true);
-    showMessage('Eliminando documento...', 'info');
     try {
       await deleteDoc(doc(db, `artifacts/${myAppId}/users/${userId}/legal_documents`, docId));
-      showMessage('Documento eliminado con éxito.', 'success');
+      showMessage('Documento eliminado.', 'success');
     } catch (error) {
       console.error("Error al eliminar documento:", error);
-      showMessage(`Error al eliminar documento: ${error.message}`, 'error');
+      showMessage(`Error al eliminar: ${error.message}`, 'error');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Modified handleGenerateDocument to use the new callGeminiAPI
   const handleGenerateDocument = async () => {
-    if (!promptInput.trim()) {
-      showMessage('Por favor, ingresa un prompt para generar el documento.', 'info');
-      return;
-    }
+    if (!promptInput.trim()) { showMessage('Ingresa un prompt.', 'info'); return; }
     const generatedText = await callGeminiAPI(promptInput, 'generate');
-    if (generatedText) {
-      setDocumentContent(generatedText);
-    }
+    if (generatedText) setDocumentContent(generatedText);
   };
 
-  // Modified handleModifyDocument to use the new callGeminiAPI
   const handleModifyDocument = async () => {
-    if (!promptInput.trim()) {
-      showMessage('Por favor, ingresa un prompt para modificar el documento.', 'info');
-      return;
-    }
-    if (!documentContent.trim()) {
-      showMessage('El documento está vacío. Por favor, genera un documento primero o carga uno existente para modificar.', 'info');
-      return;
-    }
-    const modifiedText = await callGeminiAPI(documentContent, 'modify', documentContent);
-    if (modifiedText) {
-      setDocumentContent(modifiedText);
-    }
+    if (!promptInput.trim() || !documentContent.trim()) { showMessage('Se requiere un prompt y un documento para modificar.', 'info'); return; }
+    const modifiedText = await callGeminiAPI(promptInput, 'modify', documentContent);
+    if (modifiedText) setDocumentContent(modifiedText);
   };
 
-  // New handleSummarizeDocument function
   const handleSummarizeDocument = async () => {
-    if (!documentContent.trim()) {
-      showMessage('El documento está vacío. No hay nada que resumir.', 'info');
-      return;
-    }
-    setShowSummaryModal(true); // Show modal immediately with loading state
-    setSummaryContent(''); // Clear previous summary
+    if (!documentContent.trim()) { showMessage('No hay nada que resumir.', 'info'); return; }
+    setShowSummaryModal(true);
+    setSummaryContent('');
     const summary = await callGeminiAPI(documentContent, 'summarize');
-    if (summary) {
-      setSummaryContent(summary);
-    } else {
-      setSummaryContent('No se pudo generar el resumen.');
-    }
+    setSummaryContent(summary || 'No se pudo generar el resumen.');
   };
-
 
   const handleLoadDocument = (docToLoad) => {
     setDocumentContent(docToLoad.content);
     setPromptInput('');
-    setSelectedFileName(''); // Clear selected file name when loading a saved doc
+    setSelectedFileName('');
     showMessage(`Documento "${docToLoad.title || 'sin título'}" cargado.`, 'success');
     setCurrentView('editor');
   };
@@ -1158,12 +1100,91 @@ function App() {
   const handleNewDocument = () => {
     setDocumentContent('');
     setPromptInput('');
-    setSelectedFileName(''); // Clear selected file name for new document
-    showMessage('Nuevo documento creado. ¡Empieza a escribir!', 'info');
+    setSelectedFileName('');
+    showMessage('Nuevo documento creado.', 'info');
     setCurrentView('editor');
   };
+  
+  // --- NEW: Assistant Chat Handlers ---
+  const handleSendAssistantMessage = async (message) => {
+    const newUserMessage = { role: 'user', content: message };
+    setAssistantChatHistory(prev => [...prev, newUserMessage]);
+    
+    const assistantResponse = await callGeminiAPI(message, 'assistant');
+    const modelResponse = { role: 'model', content: assistantResponse || 'Lo siento, no pude procesar tu solicitud.' };
+    setAssistantChatHistory(prev => [...prev, modelResponse]);
+  };
 
-  // Tailwind classes for message types
+  const handleSaveChat = async () => {
+    if (!db || !userId || assistantChatHistory.length === 0) {
+        showMessage('No hay nada en el chat para guardar.', 'info');
+        return;
+    }
+    setIsLoading(true);
+    try {
+        const firstUserMessage = assistantChatHistory.find(m => m.role === 'user')?.content;
+        const title = getDocumentTitle(firstUserMessage);
+
+        const chatData = {
+            title,
+            history: assistantChatHistory,
+            savedAt: serverTimestamp(),
+        };
+
+        if (currentChatId) {
+            // Update existing chat
+            const chatRef = doc(db, `artifacts/${myAppId}/users/${userId}/assistant_chats`, currentChatId);
+            await updateDoc(chatRef, chatData);
+            showMessage('Chat actualizado con éxito.', 'success');
+        } else {
+            // Create new chat
+            const chatsCollectionRef = collection(db, `artifacts/${myAppId}/users/${userId}/assistant_chats`);
+            const newDocRef = await addDoc(chatsCollectionRef, chatData);
+            setCurrentChatId(newDocRef.id); // Set the ID for potential further saves
+            showMessage('Chat guardado con éxito.', 'success');
+        }
+        setCurrentView('assistant-lobby');
+    } catch (error) {
+        console.error("Error al guardar el chat:", error);
+        showMessage(`Error al guardar el chat: ${error.message}`, 'error');
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  const handleDiscardChat = () => {
+      setAssistantChatHistory([]);
+      setCurrentChatId(null);
+      setCurrentView('assistant-lobby');
+  };
+
+  const handleNewChat = () => {
+      setAssistantChatHistory([]);
+      setCurrentChatId(null);
+      setCurrentView('assistant-chat');
+  };
+
+  const handleLoadChat = (chat) => {
+      setAssistantChatHistory(chat.history);
+      setCurrentChatId(chat.id);
+      setCurrentView('assistant-chat');
+  };
+  
+  const handleDeleteChat = async (chatId) => {
+    if (!db || !userId || !window.confirm('¿Eliminar esta conversación de chat?')) return;
+    setIsLoading(true);
+    try {
+      await deleteDoc(doc(db, `artifacts/${myAppId}/users/${userId}/assistant_chats`, chatId));
+      showMessage('Chat eliminado.', 'success');
+    } catch (error) {
+      console.error("Error al eliminar chat:", error);
+      showMessage(`Error al eliminar: ${error.message}`, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
   const messageClasses = {
     info: 'bg-blue-100 border-blue-400 text-blue-700',
     success: 'bg-green-100 border-green-400 text-green-700',
@@ -1197,30 +1218,28 @@ function App() {
             Mis Documentos
           </button>
           <button
+            onClick={() => { setCurrentView('assistant-lobby'); setIsNavOpen(false); }} 
+            className="text-left text-lg text-primary-dark hover:text-primary-light font-semibold py-2 px-3 rounded-lg"
+          >
+            Asistente AI
+          </button>
+          <button
             onClick={() => { setCurrentView('subscriptions'); setIsNavOpen(false); }}
             className="text-left text-lg text-primary-dark hover:text-primary-light font-semibold py-2 px-3 rounded-lg"
           >
             Planes de Suscripción
           </button>
-          <button
-            onClick={() => { setCurrentView('assistant-chat'); setIsNavOpen(false); }} 
-            className="text-left text-lg text-primary-dark hover:text-primary-light font-semibold py-2 px-3 rounded-lg"
-          >
-            Asistente AI
-          </button>
         </nav>
       </div>
 
       <div className="w-full max-w-6xl bg-white rounded-xl shadow-lg p-6 space-y-6 flex flex-col">
-        {/* Header with main title and logo */}
+        {/* Header */}
         <div className="w-full flex justify-between items-center mb-6">
           <div className="flex items-center space-x-3 flex-grow">
-            {/* Hamburger Menu Button (visible on mobile) */}
             <button className="md:hidden text-primary-dark text-3xl p-2" onClick={() => setIsNavOpen(!isNavOpen)}>
-              &#9776; {/* Hamburger icon */}
+              &#9776;
             </button>
-            {/* Logo */}
-            <img src="/image_a8a856.png" alt="LegalDocs AI Logo" className="h-12 w-auto" onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/100x48/CCCCCC/000000?text=LegalDocs+AI"; showMessage('Error al cargar el logo. Asegúrate de que "image_a8a856.png" esté en la carpeta public/.', 'error'); }} />
+            <img src="/image_a8a856.png" alt="LegalDocs AI Logo" className="h-12 w-auto" onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/100x48/CCCCCC/000000?text=LegalDocs+AI"; showMessage('Error al cargar el logo.', 'error'); }} />
             <h1 className="text-4xl font-extrabold text-primary-dark hidden md:block font-sans">
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary-dark to-accent-gold">
                 LegalDocs IA 🇦🇷
@@ -1238,163 +1257,67 @@ function App() {
           )}
         </div>
 
-        {/* Message display (always visible) */}
+        {/* Message display */}
         {message && (
           <div className={`transition-opacity duration-500 ease-in-out px-4 py-3 rounded-lg relative text-center border ${messageClasses[messageType]} shadow-md`} role="alert">
             <span className="block sm:inline font-medium">{message}</span>
           </div>
         )}
 
-        {/* Upgrade Auth Prompt Modal */}
-        {showUpgradeAuth && (
-            <UpgradeAuthPrompt
-                onAuthSuccess={handleUpgradeAuthSuccess}
-                onCancel={handleUpgradeAuthCancel}
-                isLoading={isLoading}
-                setIsLoading={setIsLoading}
-                showMessage={showMessage}
-                                auth={auth} // Pass auth to UpgradeAuthPrompt
-                selectedPlanToUpgradeTo={planToUpgradeTo}
-            />
-        )}
+        {/* Modals */}
+        {showUpgradeAuth && <UpgradeAuthPrompt onAuthSuccess={handleUpgradeAuthSuccess} onCancel={handleUpgradeAuthCancel} isLoading={isLoading} setIsLoading={setIsLoading} showMessage={showMessage} auth={auth} selectedPlanToUpgradeTo={planToUpgradeTo} />}
+        {showSummaryModal && <SummaryModal summaryContent={summaryContent} onClose={() => setShowSummaryModal(false)} isLoading={isLoading} />}
+        {showReviewModal && <ReviewModal reviewContent={reviewContent} onClose={() => setShowReviewModal(false)} isLoading={isLoading} />}
 
-        {/* Summary Modal */}
-        {showSummaryModal && (
-            <SummaryModal
-                summaryContent={summaryContent}
-                onClose={() => setShowSummaryModal(false)}
-                isLoading={isLoading} 
-            />
-        )}
-
-        {/* Review Modal */}
-        {showReviewModal && (
-            <ReviewModal
-                reviewContent={reviewContent}
-                onClose={() => setShowReviewModal(false)}
-                isLoading={isLoading} 
-            />
-        )}
-
-        {/* Assistant Chat Modal - Now conditionally rendered as a main view */}
-        {currentView === 'assistant-chat' && (
-          <AssistantChatModal
-            chatHistory={assistantChatHistory}
-            onSendMessage={handleSendAssistantMessage} 
-            onClose={() => setCurrentView('home')} 
-            isLoading={isLoading}
-          />
-        )}
-
+        {/* --- Main Content Area --- */}
 
         {currentView === 'login' && (
-          <AuthView
-            handleRegister={handleRegister}
-            handleLogin={handleLogin}
-            isLoading={isLoading}
-            email={email}
-            setEmail={setEmail}
-            password={password}
-            setPassword={setPassword}
-            showMessage={showMessage}
-          />
+          <AuthView handleRegister={handleRegister} handleLogin={handleLogin} isLoading={isLoading} email={email} setEmail={setEmail} password={password} setPassword={setPassword} showMessage={showMessage} />
         )}
 
-        {userId && currentView !== 'login' && currentView !== 'assistant-chat' && ( 
+        {userId && currentView !== 'login' && (
           <>
-            {/* Main Navigation buttons (hidden on mobile, shown by hamburger) */}
-            <div className="w-full flex flex-wrap gap-4 justify-center mb-6 hidden md:flex">
-              <button
-                onClick={() => setCurrentView('editor')}
-                className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'editor' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark hover:bg-gray-300'}`}
-              >
-                Editor de Documentos
-              </button>
-              <button
-                onClick={() => setCurrentView('home')}
-                className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'home' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark hover:bg-gray-300'}`}
-              >
-                Mis Documentos
-              </button>
-              <button
-                onClick={() => setCurrentView('subscriptions')}
-                className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'subscriptions' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark hover:bg-gray-300'}`}
-              >
-                Planes de Suscripción
-              </button>
-              <button
-                onClick={() => setCurrentView('assistant-chat')}
-                className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'assistant-chat' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark hover:bg-gray-300'}`}
-              >
-                Asistente AI
-              </button>
+            {/* Desktop Navigation */}
+            <div className="w-full flex-wrap gap-4 justify-center mb-6 hidden md:flex">
+              <button onClick={() => setCurrentView('editor')} className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'editor' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark hover:bg-gray-300'}`}>Editor de Documentos</button>
+              <button onClick={() => setCurrentView('home')} className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'home' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark hover:bg-gray-300'}`}>Mis Documentos</button>
+              <button onClick={() => setCurrentView('assistant-lobby')} className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'assistant-lobby' || currentView === 'assistant-chat' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark hover:bg-gray-300'}`}>Asistente AI</button>
+              <button onClick={() => setCurrentView('subscriptions')} className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'subscriptions' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark hover:bg-gray-300'}`}>Planes de Suscripción</button>
             </div>
+            
+            {/* View Renderer */}
+            {currentView === 'editor' && <DocumentEditor documentContent={documentContent} setDocumentContent={setDocumentContent} promptInput={promptInput} setPromptInput={setPromptInput} isLoading={isLoading} handleGenerateDocument={handleGenerateDocument} handleModifyDocument={handleModifyDocument} handleSaveDocument={handleSaveDocument} handleNewDocument={handleNewDocument} handleSummarizeDocument={handleSummarizeDocument} handleReviewDocument={handleReviewDocument} userPlan={userPlan} generationCount={generationCount} filesUploadedToday={filesUploadedToday} selectedFileName={selectedFileName} />}
+            {currentView === 'home' && (
+              <div className="w-full bg-bg-light p-4 rounded-xl shadow-inner flex flex-col">
+                <h2 className="text-2xl font-bold text-primary-dark mb-4 text-center">Mis Documentos Guardados</h2>
+                <div className="overflow-y-auto max-h-[calc(100vh-250px)] pr-2">
+                  {savedDocuments.length > 0 ? (
+                    <ul className="space-y-3">
+                      {savedDocuments.map((doc) => (
+                        <li key={doc.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                          <div className="flex-grow mb-3 sm:mb-0">
+                            <p className="font-semibold text-primary-dark text-lg mb-1 font-serif">{doc.title || getDocumentTitle(doc.content)}</p>
+                            {doc.lastModifiedAt && <p className="text-text-medium text-sm font-serif">Última modif.: {new Date(doc.lastModifiedAt.toDate()).toLocaleString()}</p>}
+                            <p className="text-text-dark text-sm mt-1 line-clamp-2 font-serif">{doc.content}</p>
+                          </div>
+                          <div className='flex gap-2'>
+                            <button onClick={() => handleLoadDocument(doc)} className="bg-primary-dark hover:bg-primary-light text-white text-sm font-medium py-2 px-4 rounded-md transition-colors duration-200 shadow-sm" disabled={isLoading}>Cargar</button>
+                            <button onClick={() => handleDeleteDocument(doc.id)} className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors duration-200 shadow-sm" disabled={isLoading}>Eliminar</button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-text-medium text-center py-8">No tienes documentos guardados.</p>
+                  )}
+                </div>
+              </div>
+            )}
+            {currentView === 'subscriptions' && <SubscriptionPlansView userPlan={userPlan} handleSelectPlan={handleSelectPlan} isLoading={isLoading} setCurrentView={setCurrentView} />}
+            {currentView === 'assistant-lobby' && <AssistantLobbyView savedChats={savedChats} onNewChat={handleNewChat} onLoadChat={handleLoadChat} onDeleteChat={handleDeleteChat} isLoading={isLoading} />}
+            {currentView === 'assistant-chat' && <AssistantChatView chatHistory={assistantChatHistory} onSendMessage={handleSendAssistantMessage} onSaveChat={handleSaveChat} onDiscardChat={handleDiscardChat} isLoading={isLoading} />}
           </>
         )}
-
-        {userId && currentView === 'editor' && (
-          <DocumentEditor
-              documentContent={documentContent}
-              setDocumentContent={setDocumentContent}
-              promptInput={promptInput}
-              setPromptInput={setPromptInput}
-              isLoading={isLoading}
-              handleGenerateDocument={handleGenerateDocument}
-              handleModifyDocument={handleModifyDocument}
-              handleSaveDocument={handleSaveDocument}
-              handleNewDocument={handleNewDocument}
-              handleSummarizeDocument={handleSummarizeDocument} 
-              handleReviewDocument={handleReviewDocument} 
-              userPlan={userPlan}
-              generationCount={generationCount}
-              filesUploadedToday={filesUploadedToday} 
-              selectedFileName={selectedFileName} 
-          />
-        )}
-
-        {userId && currentView === 'home' && (
-          <div className="w-full bg-bg-light p-4 rounded-xl shadow-inner flex flex-col">
-            <h2 className="text-2xl font-bold text-primary-dark mb-4 text-center">Mis Documentos Guardados</h2>
-            <div className="overflow-y-auto max-h-[calc(100vh-250px)] pr-2">
-              {savedDocuments.length > 0 ? (
-                <ul className="space-y-3">
-                  {savedDocuments.map((doc) => (
-                    <li key={doc.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col justify-between items-start">
-                      <div className="flex-grow">
-                        <p className="font-semibold text-primary-dark text-lg mb-1 font-serif">{doc.title || getDocumentTitle(doc.content)}</p>
-                        {doc.lastModifiedAt && (
-                          <p className="text-text-medium text-sm font-serif">
-                            Última modif.: {new Date(doc.lastModifiedAt.toDate()).toLocaleString()}
-                          </p>
-                        )}
-                        <p className="text-text-dark text-sm mt-1 line-clamp-2 font-serif">{doc.content}</p>
-                      </div>
-                      <button
-                        onClick={() => handleLoadDocument(doc)}
-                        className="mt-3 bg-primary-dark hover:bg-primary-light text-white text-sm font-medium py-2 px-4 rounded-md transition-colors duration-200 shadow-sm"
-                        disabled={isLoading}
-                      >
-                        Cargar Documento
-                      </button>
-                      <button
-                        onClick={() => handleDeleteDocument(doc.id)} 
-                        className="mt-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors duration-200 shadow-sm"
-                        disabled={isLoading}
-                      >
-                        Eliminar
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-text-medium text-center py-8">Aún no tienes documentos guardados. ¡Ve al editor para crear uno!</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {userId && currentView === 'subscriptions' && <SubscriptionPlansView userPlan={userPlan} handleSelectPlan={handleSelectPlan} isLoading={isLoading} setCurrentView={setCurrentView} />}
-
 
         {userId && (
           <div className="text-sm text-text-medium text-center mt-6 p-3 bg-white rounded-lg shadow-md max-w-4xl w-full break-all">
