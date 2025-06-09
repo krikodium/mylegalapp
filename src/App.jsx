@@ -93,6 +93,81 @@ function ReviewModal({ reviewContent, onClose, isLoading }) {
   );
 }
 
+// AssistantChatModal Component
+function AssistantChatModal({ chatHistory, onSendMessage, onClose, isLoading }) {
+  const [input, setInput] = useState('');
+  const chatEndRef = useRef(null); 
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatHistory]);
+
+  const handleSend = () => {
+    if (input.trim()) { // Only send if input is not empty
+      onSendMessage(input);
+      setInput('');
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !isLoading) {
+      handleSend();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md h-[80vh] flex flex-col relative">
+        <h3 className="text-2xl font-bold text-primary-dark mb-4 text-center font-sans">Asistente Legal AI 🤖</h3>
+        <div className="flex-grow overflow-y-auto border border-gray-200 rounded-lg p-3 mb-4 space-y-3 custom-scrollbar">
+          {chatHistory.length === 0 && (
+              <p className="text-text-medium text-center italic font-serif">Hola, soy tu Asistente Legal. ¿En qué puedo ayudarte hoy?</p>
+          )}
+          {chatHistory.map((msg, index) => (
+            <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] p-2 rounded-lg ${
+                msg.role === 'user' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark'
+              }`}>
+                <p className="font-serif">{msg.content}</p>
+              </div>
+            </div>
+          ))}
+          <div ref={chatEndRef} /> 
+        </div>
+        
+        <div className="flex">
+          <input
+            type="text"
+            className="flex-grow p-2 border border-primary-light rounded-l-lg focus:ring-2 focus:ring-primary-dark focus:border-transparent text-text-dark font-serif"
+            placeholder="Escribe tu pregunta..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={handleKeyPress}
+            disabled={isLoading}
+          />
+          <button
+            onClick={handleSend}
+            className="bg-primary-dark hover:bg-primary-light text-white font-semibold py-2 px-4 rounded-r-lg transition-colors duration-200 shadow-md"
+            disabled={isLoading}
+          >
+            Enviar
+          </button>
+        </div>
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // DocumentEditor Component
 function DocumentEditor({
   documentContent, setDocumentContent, promptInput, setPromptInput,
@@ -106,7 +181,7 @@ function DocumentEditor({
     <div className="w-full flex flex-col space-y-6">
       <div className="relative">
         <textarea
-          className="w-full p-4 border border-primary-light rounded-lg focus:ring-2 focus:ring-primary-dark focus:border-transparent text-text-dark placeholder-text-medium min-h-[100px] resize-y shadow-sm"
+          className="w-full p-4 border border-primary-light rounded-lg focus:ring-2 focus:ring-primary-dark focus:border-transparent text-text-dark placeholder-text-medium min-h-[100px] resize-y shadow-sm font-serif"
           placeholder="Escribe tus instrucciones para la IA aquí (ej: 'Redacta un contrato de alquiler de vivienda para Buenos Aires, con cláusulas de actualización trimestral...')"
           value={promptInput}
           onChange={(e) => setPromptInput(e.target.value)}
@@ -155,17 +230,15 @@ function DocumentEditor({
           Nuevo Doc.
         </button>
         
-        {/* Summarize Document Button */}
         <button
           onClick={handleSummarizeDocument}
-          className="bg-accent-gold hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 ease-in-out shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 flex items-center justify-center gap-2"
+          className="bg-accent-gold hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 ease-in-out shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent-gold focus:ring-offset-2 flex items-center justify-center gap-2"
           disabled={isLoading || !documentContent.trim()}
         >
           {isLoading && <SpinnerIcon />}
           Resumir Doc. ✨
         </button>
 
-        {/* Review Document Button with File Input */}
         <input
             type="file"
             ref={fileInputRef}
@@ -175,7 +248,7 @@ function DocumentEditor({
             disabled={isLoading}
         />
         <button
-          onClick={() => { // Trigger file input on button click
+          onClick={() => { 
             if (fileInputRef.current) {
               fileInputRef.current.click();
             }
@@ -191,13 +264,13 @@ function DocumentEditor({
         </button>
       </div>
 
-      {selectedFileName && ( // Display selected file name
+      {selectedFileName && ( 
         <p className="text-sm text-text-medium mb-2">Archivo seleccionado: <span className="font-semibold text-primary-dark">{selectedFileName}</span></p>
       )}
 
       <div className="relative border border-primary-light rounded-xl shadow-inner bg-white">
         <textarea
-          className="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-primary-dark focus:border-transparent text-text-dark min-h-[400px] resize-y shadow-inner"
+          className="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-primary-dark focus:border-transparent text-text-dark min-h-[400px] resize-y shadow-inner font-serif"
           value={documentContent}
           onChange={(e) => setDocumentContent(e.target.value)}
           placeholder="El documento generado por la IA aparecerá aquí... Puedes editar el texto directamente."
@@ -431,8 +504,7 @@ function SubscriptionPlansView({ userPlan, handleSelectPlan, isLoading, setCurre
             <li className="flex items-center"><svg className="h-5 w-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg> Generaciones ilimitadas</li>
             <li className="flex items-center"><svg className="h-5 w-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg> Acceso ilimitado al editor</li>
             <li className="flex items-center"><svg className="h-5 w-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg> Almacenamiento de documentos ilimitado</li>
-            <li className="flex items-center"><svg className="h-5 w-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414 1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg> Subida de archivos (beta)</li>
-            <li className="flex items-center"><svg className="h-5 w-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg> Soporte prioritario</li>
+            <li className="flex items-center text-gray-400"><svg className="h-5 w-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"></path></svg> Sin subida de archivos</li>
           </ul>
           {userPlan === 'pro' ? (
              <span className="text-primary-dark font-semibold py-2 px-4 rounded-lg">Plan Actual</span>
@@ -481,6 +553,30 @@ function App() {
   const [reviewContent, setReviewContent] = useState(''); // New state for AI review content
   const [showReviewModal, setShowReviewModal] = useState(false); // New state to control AI review modal visibility
   const [selectedFileName, setSelectedFileName] = useState(''); // New: State for displaying selected file name
+  const [isNavOpen, setIsNavOpen] = useState(false); // NEW: State for hamburger menu
+  const [assistantChatHistory, setAssistantChatHistory] = useState([]); // New: Chat history for assistant
+  // Moved handleSendAssistantMessage here so it's always defined when passed
+  const handleSendAssistantMessage = async (message) => {
+    if (!message.trim()) return;
+
+    const newUserMessage = { role: 'user', content: message };
+    setAssistantChatHistory(prev => [...prev, newUserMessage]);
+    setIsLoading(true);
+
+    try {
+      const assistantResponse = await callGeminiAPI(message, 'assistant');
+      if (assistantResponse) {
+        setAssistantChatHistory(prev => [...prev, { role: 'model', content: assistantResponse }]);
+      } else {
+        setAssistantChatHistory(prev => [...prev, { role: 'model', content: 'Lo siento, no pude procesar tu solicitud en este momento. Intenta de nuevo.' }]);
+      }
+    } catch (error) {
+      console.error("Error en la conversación con el asistente:", error);
+      setAssistantChatHistory(prev => [...prev, { role: 'model', content: 'Hubo un error al comunicarme con el asistente. Intenta de nuevo.' }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   const messageTimeoutRef = useRef(null);
 
   // Clear message after a few seconds
@@ -703,7 +799,7 @@ function App() {
           showMessage(`Error al seleccionar plan: ${error.message}`, 'error');
       } finally {
           setIsLoading(false);
-    }
+      }
   };
 
   const handleUpgradeAuthSuccess = async (plan) => {
@@ -796,8 +892,8 @@ function App() {
     // Check specific limits based on AI call type
     if (type === 'generate' || type === 'modify') {
       if (!checkGenerationLimit()) return null;
-    } else if (type === 'summarize' || type === 'review') { // Summarize and Review now use file upload limit
-      if (!checkFileUploadLimit()) return null; // Use file upload limit for review/summarize
+    } else if (type === 'summarize' || type === 'review' || type === 'assistant') { // Added 'assistant' type to limit
+      if (!checkFileUploadLimit()) return null; // Use file upload limit for review/summarize/assistant
     }
 
     setIsLoading(true);
@@ -811,9 +907,19 @@ function App() {
       promptToSend = `Dado el siguiente documento legal (texto plano): \n\n"""\n${currentDoc}\n"""\n\nPor favor, modifica, revisa, extiende o continúa este documento basándote en la siguiente instrucción. Responde únicamente con texto plano, sin etiquetas HTML o formato especial:\n\n"${prompt}"`;
     } else if (type === 'summarize') {
       promptToSend = `Por favor, proporciona un resumen conciso y claro del siguiente documento legal. Enfócate en los puntos clave, las partes involucradas y las acciones principales. Responde únicamente con texto plano, sin etiquetas HTML o formato especial:\n\n"""\n${prompt}\n"""`;
-    } else if (type === 'review') { // New review prompt
+    } else if (type === 'review') { 
       promptToSend = `Eres un asistente legal en Argentina. Revisa el siguiente documento legal (texto plano) y proporciona consejos o mejoras. Identifica posibles errores, ambigüedades, áreas de optimización, o sugerencias para mayor claridad o cumplimiento legal. Responde únicamente con texto plano:\n\n"""\n${prompt}\n"""`;
+    } else if (type === 'assistant') { // NEW: Assistant prompt
+        promptToSend = `Eres un asistente virtual de la aplicación LegalDocs AI, especializada en documentos legales para Argentina. Tu propósito es ayudar a los usuarios con preguntas relacionadas con la aplicación, su funcionamiento, los planes de suscripción, cómo generar/modificar/resumir/revisar documentos, o consejos generales sobre la redacción legal en Argentina.
+
+        **Instrucciones clave:**
+        - Sé conciso, útil y profesional.
+        - Si la pregunta no está relacionada con la aplicación o con el ámbito legal (ej. "cuál es la capital de Francia", "cuéntame un chiste"), responde amablemente pidiendo que el usuario se centre en temas relevantes. No actúes como un chatbot de propósito general.
+        - No generes documentos legales completos ni des asesoramiento legal específico, solo guía y consejos generales sobre el uso de la app o el ámbito legal.
+
+        **Conversación del usuario:**\n\n"${prompt}"`;
     }
+
 
     try {
       let chatHistory = [{ role: "user", parts: [{ text: promptToSend }] }];
@@ -840,11 +946,11 @@ function App() {
         // Increment specific counter based on type
         if (type === 'generate' || type === 'modify') {
             incrementGenerationCount();
-        } else if (type === 'summarize' || type === 'review') {
-            incrementFilesUploaded(); // Increment file upload counter for review/summarize
+        } else if (type === 'summarize' || type === 'review' || type === 'assistant') { // Increment for assistant too
+            incrementFilesUploaded(); 
         }
         showMessage('Contenido generado/modificado con éxito.', 'success');
-        return text; // Return the generated text
+        return text; 
       } else {
         showMessage('No se pudo generar contenido. La respuesta de la IA fue inesperada.', 'error');
         console.error('Respuesta inesperada de la API de Gemini:', result);
@@ -871,9 +977,8 @@ function App() {
       setSelectedFileName(file.name); // Display the selected file name
 
       if (file.type === 'application/pdf') {
-          // Check PDF upload limit here before processing
           if (!checkFileUploadLimit()) {
-            event.target.value = ''; // Clear file input
+            event.target.value = ''; 
             return;
           }
           showMessage('Procesando PDF... Esto puede tomar un momento.', 'info');
@@ -892,13 +997,13 @@ function App() {
 
                   if (!fullText.trim()) {
                       showMessage('El archivo PDF está vacío o no se pudo extraer texto.', 'info');
-                      setSelectedFileName(''); // Clear file name
+                      setSelectedFileName(''); 
                       return;
                   }
                   
-                  setShowReviewModal(true); // Show modal immediately with loading state
-                  setReviewContent(''); // Clear previous review
-                  const review = await callGeminiAPI(fullText, 'review'); // Pass extracted text to AI
+                  setShowReviewModal(true); 
+                  setReviewContent(''); 
+                  const review = await callGeminiAPI(fullText, 'review'); 
                   if (review) {
                       setReviewContent(review);
                   } else {
@@ -907,16 +1012,16 @@ function App() {
               } catch (pdfError) {
                   console.error("Error al procesar PDF:", pdfError);
                   showMessage(`Error al procesar el archivo PDF: ${pdfError.message}. Asegúrate de que sea un PDF válido y legible.`, 'error');
-                  setSelectedFileName(''); // Clear file name on error
+                  setSelectedFileName(''); 
               }
           };
           reader.readAsArrayBuffer(file);
-          event.target.value = ''; // Clear file input after reading
-          return; // Exit function after handling PDF
+          event.target.value = ''; 
+          return; 
 
       } else if (file.type !== 'text/plain') {
           showMessage('Solo se permiten archivos de texto plano (.txt) o PDF para la revisión.', 'error');
-          event.target.value = ''; // Clear file input
+          event.target.value = ''; 
           return;
       }
 
@@ -926,11 +1031,11 @@ function App() {
           const fileContent = e.target.result;
           if (!fileContent.trim()) {
               showMessage('El archivo está vacío. No hay nada que revisar.', 'info');
-              setSelectedFileName(''); // Clear file name
+              setSelectedFileName(''); 
               return;
           }
-          setShowReviewModal(true); // Show modal immediately with loading state
-          setReviewContent(''); // Clear previous review
+          setShowReviewModal(true); 
+          setReviewContent(''); 
           const review = await callGeminiAPI(fileContent, 'review');
           if (review) {
               setReviewContent(review);
@@ -939,7 +1044,7 @@ function App() {
           }
       };
       reader.readAsText(file);
-      event.target.value = ''; // Clear file input after reading
+      event.target.value = ''; 
   };
 
 
@@ -965,7 +1070,7 @@ function App() {
       });
       setDocumentContent('');
       setPromptInput('');
-      setSelectedFileName(''); // Clear selected file name after saving
+      setSelectedFileName(''); 
       showMessage('Documento guardado con éxito. ¡Empieza un nuevo documento!', 'success');
     } catch (error) {
       console.error("Error al guardar el documento:", error);
@@ -1067,16 +1172,58 @@ function App() {
 
   // --- Main Render Logic ---
   return (
-    <div className="min-h-screen bg-bg-light p-4 font-sans flex flex-col items-center overflow-x-hidden">
+    <div className="min-h-screen bg-bg-page p-4 font-sans flex flex-col items-center overflow-x-hidden">
+      {/* Drawer Overlay */}
+      {isNavOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 z-40 md:hidden" onClick={() => setIsNavOpen(false)}></div>
+      )}
+
+      {/* Drawer */}
+      <div className={`fixed top-0 left-0 h-full bg-white shadow-xl z-50 transform transition-transform duration-300 ${isNavOpen ? 'translate-x-0' : '-translate-x-full'} w-64 p-6 md:hidden flex flex-col`}>
+        <button className="self-end text-primary-dark text-2xl mb-6" onClick={() => setIsNavOpen(false)}>
+          &times;
+        </button>
+        <nav className="flex flex-col space-y-4">
+          <button
+            onClick={() => { setCurrentView('editor'); setIsNavOpen(false); }}
+            className="text-left text-lg text-primary-dark hover:text-primary-light font-semibold py-2 px-3 rounded-lg"
+          >
+            Editor de Documentos
+          </button>
+          <button
+            onClick={() => { setCurrentView('home'); setIsNavOpen(false); }}
+            className="text-left text-lg text-primary-dark hover:text-primary-light font-semibold py-2 px-3 rounded-lg"
+          >
+            Mis Documentos
+          </button>
+          <button
+            onClick={() => { setCurrentView('subscriptions'); setIsNavOpen(false); }}
+            className="text-left text-lg text-primary-dark hover:text-primary-light font-semibold py-2 px-3 rounded-lg"
+          >
+            Planes de Suscripción
+          </button>
+          <button
+            onClick={() => { setCurrentView('assistant-chat'); setIsNavOpen(false); }} 
+            className="text-left text-lg text-primary-dark hover:text-primary-light font-semibold py-2 px-3 rounded-lg"
+          >
+            Asistente AI
+          </button>
+        </nav>
+      </div>
+
       <div className="w-full max-w-6xl bg-white rounded-xl shadow-lg p-6 space-y-6 flex flex-col">
         {/* Header with main title and logo */}
         <div className="w-full flex justify-between items-center mb-6">
           <div className="flex items-center space-x-3 flex-grow">
+            {/* Hamburger Menu Button (visible on mobile) */}
+            <button className="md:hidden text-primary-dark text-3xl p-2" onClick={() => setIsNavOpen(!isNavOpen)}>
+              &#9776; {/* Hamburger icon */}
+            </button>
             {/* Logo */}
-            <img src="/image_a8a856.png" alt="LegalDocs AI Logo" className="h-12 w-auto" onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/100x48/CCCCCC/000000?text=Logo"; showMessage('Error al cargar el logo. Asegúrate de que "image_a8a856.png" esté en la carpeta public.', 'error'); }} />
-            <h1 className="text-4xl font-extrabold text-primary-dark">
+            <img src="/image_a8a856.png" alt="LegalDocs AI Logo" className="h-12 w-auto" onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/100x48/CCCCCC/000000?text=LegalDocs+AI"; showMessage('Error al cargar el logo. Asegúrate de que "image_a8a856.png" esté en la carpeta public/.', 'error'); }} />
+            <h1 className="text-4xl font-extrabold text-primary-dark hidden md:block font-sans">
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary-dark to-accent-gold">
-                LegalDocs AI 🇦🇷
+                LegalDocs IA 🇦🇷
               </span>
             </h1>
           </div>
@@ -1106,7 +1253,7 @@ function App() {
                 isLoading={isLoading}
                 setIsLoading={setIsLoading}
                 showMessage={showMessage}
-                auth={auth}
+                                auth={auth} // Pass auth to UpgradeAuthPrompt
                 selectedPlanToUpgradeTo={planToUpgradeTo}
             />
         )}
@@ -1129,6 +1276,16 @@ function App() {
             />
         )}
 
+        {/* Assistant Chat Modal - Now conditionally rendered as a main view */}
+        {currentView === 'assistant-chat' && (
+          <AssistantChatModal
+            chatHistory={assistantChatHistory}
+            onSendMessage={handleSendAssistantMessage} 
+            onClose={() => setCurrentView('home')} 
+            isLoading={isLoading}
+          />
+        )}
+
 
         {currentView === 'login' && (
           <AuthView
@@ -1143,27 +1300,33 @@ function App() {
           />
         )}
 
-        {userId && currentView !== 'login' && ( 
+        {userId && currentView !== 'login' && currentView !== 'assistant-chat' && ( 
           <>
-            {/* Navigation buttons */}
-            <div className="w-full flex flex-wrap gap-4 justify-center mb-6">
+            {/* Main Navigation buttons (hidden on mobile, shown by hamburger) */}
+            <div className="w-full flex flex-wrap gap-4 justify-center mb-6 hidden md:flex">
               <button
                 onClick={() => setCurrentView('editor')}
-                className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'editor' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'editor' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark hover:bg-gray-300'}`}
               >
                 Editor de Documentos
               </button>
               <button
                 onClick={() => setCurrentView('home')}
-                className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'home' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'home' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark hover:bg-gray-300'}`}
               >
                 Mis Documentos
               </button>
               <button
                 onClick={() => setCurrentView('subscriptions')}
-                className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'subscriptions' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'subscriptions' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark hover:bg-gray-300'}`}
               >
                 Planes de Suscripción
+              </button>
+              <button
+                onClick={() => setCurrentView('assistant-chat')}
+                className={`py-2 px-6 rounded-lg font-semibold transition-colors duration-200 shadow-md ${currentView === 'assistant-chat' ? 'bg-primary-dark text-white' : 'bg-gray-200 text-text-dark hover:bg-gray-300'}`}
+              >
+                Asistente AI
               </button>
             </div>
           </>
@@ -1198,13 +1361,13 @@ function App() {
                   {savedDocuments.map((doc) => (
                     <li key={doc.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col justify-between items-start">
                       <div className="flex-grow">
-                        <p className="text-text-dark font-semibold text-lg mb-1">{doc.title || getDocumentTitle(doc.content)}</p>
+                        <p className="font-semibold text-primary-dark text-lg mb-1 font-serif">{doc.title || getDocumentTitle(doc.content)}</p>
                         {doc.lastModifiedAt && (
-                          <p className="text-text-medium text-sm">
+                          <p className="text-text-medium text-sm font-serif">
                             Última modif.: {new Date(doc.lastModifiedAt.toDate()).toLocaleString()}
                           </p>
                         )}
-                        <p className="text-text-dark text-sm mt-1 line-clamp-2">{doc.content}</p>
+                        <p className="text-text-dark text-sm mt-1 line-clamp-2 font-serif">{doc.content}</p>
                       </div>
                       <button
                         onClick={() => handleLoadDocument(doc)}
